@@ -16,12 +16,17 @@ class SSEClient;
 typedef boost::shared_ptr<SSEClient> SSEClientPtr;
 typedef list<SSEClientPtr> SSEClientPtrList;
 
+typedef struct {
+  string data;
+  string target;
+} msg_t;
+
 class SSEClientHandler {
   public:
     SSEClientHandler(int);
     ~SSEClientHandler();
     void AddClient(SSEClient* client);
-    void Broadcast(const string msg);
+    void Broadcast(msg_t& msg);
     size_t GetNumClients();
 
   private:
@@ -30,7 +35,7 @@ class SSEClientHandler {
     SSEClientPtrList _clientlist;
     boost::mutex _clientlist_lock;
     boost::thread _processorthread;
-    ConcurrentQueue<std::string> _msgqueue;
+    ConcurrentQueue<msg_t> _msgqueue;
 
     void ProcessQueue();
 };

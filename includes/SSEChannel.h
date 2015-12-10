@@ -45,6 +45,7 @@ class SSEChannel {
     SSEChannel(ChannelConfig conf, string id);
     ~SSEChannel();
     string GetId();
+    void Broadcast(const string& data, const string& subpath);
     void Broadcast(const string& data);
     void BroadcastEvent(SSEEvent& event);
     void CacheEvent(SSEEvent& event);

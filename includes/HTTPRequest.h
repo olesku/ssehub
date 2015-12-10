@@ -30,6 +30,8 @@ class HTTPRequest {
     HttpReqStatus Parse(const char *data, int len);
     bool Success();
     const string& GetPath();
+    const string& GetBasepath();
+    const string& GetSubpath();
     const string& GetMethod();
     const map<string, string>& GetHeaders();
     const string GetHeader(string header);
@@ -58,6 +60,8 @@ class HTTPRequest {
     string method;
     string post_data;
     string error_message;
+    string basepath;
+    string subpath;
     map<string, string> headers;
     map<string, string> query_parameters;
     map<string, string> qsmap;

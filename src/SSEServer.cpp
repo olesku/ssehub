@@ -39,7 +39,7 @@ SSEServer::~SSEServer() {
 **/
 bool SSEServer::Broadcast(SSEEvent& event) {
   SSEChannel* ch;
-  const string& chName = event.getpath();
+  const string& chName = event.getbasepath();
   
   ch = GetChannel(chName, _config->GetValueBool("server.allowUndefinedChannels"));
   if (ch == NULL) {
@@ -79,16 +79,18 @@ bool SSEServer::IsAllowedToPublish(SSEClient* client, const ChannelConfig& chCon
 void SSEServer::PostHandler(SSEClient* client, HTTPRequest* req) {
   SSEEvent event(req->GetPostData());
   bool validEvent;
-  const string& chName = req->GetPath().substr(1); 
+  const string chName = req->GetBasepath(); 
 
   // Set the event path to the endpoint we recieved the POST on.
-  event.setpath(chName);
+  event.setpath(req->GetPath());
 
   // Validate the event.
   validEvent = event.compile();
 
   // Check if channel exist.
   SSEChannel* ch = GetChannel(chName);
+
+  LOG(INFO) << "POST Basepath: " << chName;
 
   if (ch == NULL) {
     // Handle creation of new channels.
@@ -395,13 +397,14 @@ void SSEServer::ClientRouterLoop() {
           continue;          
         }
 
-        string chName = req->GetPath().substr(1);
+        string chName = req->GetBasepath();
         SSEChannel *ch = GetChannel(chName);
 
         DLOG(INFO) << "Channel: " << chName;
 
         if (ch != NULL) {
           epoll_ctl(_efd, EPOLL_CTL_DEL, client->Getfd(), NULL);
+          client->SetSubpath(req->GetSubpath());
           ch->AddClient(client, req);
         } else {
           HTTPResponse res;

@@ -228,15 +228,22 @@ void SSEChannel::AddClient(SSEClient* client, HTTPRequest* req) {
   if (curthread == _clientpool.end()) curthread = _clientpool.begin();
 }
 
+void SSEChannel::Broadcast(const string& data) {
+  Broadcast(data, "");
+}
+
 /**
   Broadcasts string to all connected clients.
   @param data String to broadcast.
 */
-void SSEChannel::Broadcast(const string& data) {
+void SSEChannel::Broadcast(const string& data, const string& subpath) {
   ClientHandlerList::iterator it;
+  msg_t d;
+  d.data = data;
+  d.target = subpath;
 
   for (it = _clientpool.begin(); it != _clientpool.end(); it++) {
-    (*it)->Broadcast(data);
+    (*it)->Broadcast(d);
   }
 }
 
@@ -245,7 +252,7 @@ void SSEChannel::Broadcast(const string& data) {
   @param event Event to broadcast.
 */
 void SSEChannel::BroadcastEvent(SSEEvent& event) {
-  Broadcast(event.get());
+  Broadcast(event.get(), event.getsubpath());
   INC_LONG(_stats.num_broadcasted_events);
 
   // Add event to cache if it contains a id field.

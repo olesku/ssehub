@@ -48,13 +48,13 @@ void SSEClientHandler::AddClient(SSEClient* client) {
   Broadcast message to all clients connected to this clienthandler.
   @param msg String to broadcast.
 */
-void SSEClientHandler::Broadcast(const string msg) {
+void SSEClientHandler::Broadcast(msg_t& msg) {
   _msgqueue.Push(msg);
 }
 
 void SSEClientHandler::ProcessQueue() {
   while(!stop) {
-    std::string msg;
+    msg_t msg;
     _msgqueue.WaitPop(msg);
 
     boost::mutex::scoped_lock lock(_clientlist_lock);
@@ -68,7 +68,9 @@ void SSEClientHandler::ProcessQueue() {
         continue;
       }
 
-      client->Send(msg);
+      if (client->acceptTarget(msg.target)) {
+        client->Send(msg.data);
+      }
     }
   }
 }

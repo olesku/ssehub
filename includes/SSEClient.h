@@ -39,17 +39,20 @@ class SSEClient {
     bool IsDead();
     void Destroy();
     void DeleteHttpReq();
+    void SetSubpath(const string& subpath);
     bool isSubscribed(const string key, SubscriptionType type);
     void Subscribe(const string key, SubscriptionType type);
     bool isFilterAcceptable(const string& data);
     int Flush();
-
-   private:
+    bool acceptTarget(const string& targetName);
+ 
+  private:
     int _fd;
     struct sockaddr_in _csin;
     bool _dead;
     bool _isEventFiltered;
     bool _isIdFiltered;
+    string _subpath;
     string _sndBuf;
     vector<SubscriptionElement> _subscriptions;
     boost::mutex _sndBufLock;

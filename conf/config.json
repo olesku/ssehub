@@ -9,12 +9,12 @@
     "enablePost": true
   },
   "amqp": {
-    "enabled": false,
-    "host": "127.0.0.1",
+    "enabled":true,
+    "host": "ssehub-mq-01.int.vgnett.no",
     "port": 5672,
     "user": "guest",
     "password": "guest",
-    "exchange": "amq.fanout"
+    "exchange": "dev.fanout"
   },
   "redis": {
     "host": "127.0.0.1",

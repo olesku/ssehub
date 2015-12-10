@@ -25,6 +25,14 @@ bool SSEEvent::compile() {
       _path = pt.get<std::string>("path"); 
     }
 
+    size_t p_offset = (_path[0] == '/') ? 1 : 0;
+    size_t bp_epos = _path.find_first_of("/", p_offset);
+    _basepath = (bp_epos != string::npos) ? _path.substr(p_offset, bp_epos-p_offset) : _path;
+    _subpath = (bp_epos != string::npos) ? _path.substr(bp_epos+1) : "";
+
+    LOG(INFO) << "SSEEvent basepath: " << _basepath;
+    LOG(INFO) << "SSEEvent subpath: " << _subpath;
+
     indata = pt.get<std::string>("data"); // required.
   } catch (std::exception& e) {
     return false;
@@ -68,6 +76,14 @@ void SSEEvent::setpath(const string path) {
 
 const string SSEEvent::getpath() {
   return _path;
+}
+
+const string SSEEvent::getbasepath() {
+  return _basepath;
+}
+
+const string SSEEvent::getsubpath() {
+  return _subpath;
 }
 
 const string SSEEvent::getid() {

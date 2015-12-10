@@ -100,6 +100,13 @@ HttpReqStatus HTTPRequest::Parse(const char *data, int len) {
     } else {
       path = rawPath.substr(0, rawPath.find_last_of(' ', 0));
     }
+
+    size_t bp_epos = path.find_first_of("/", 1);
+    basepath = (bp_epos != string::npos) ? path.substr(1, bp_epos-1) : path.substr(1);
+    subpath = (bp_epos != string::npos) ? path.substr(bp_epos+1) : "";
+
+    LOG(INFO) << "Basepath: " << basepath;
+    LOG(INFO) << "Subpath: " << subpath;
   }
 
   for (int i = 0; i < (int)phr_num_headers; i++) {
@@ -152,6 +159,20 @@ HttpReqStatus HTTPRequest::Parse(const char *data, int len) {
 **/
 const string& HTTPRequest::GetPath() {
   return path;
+}
+
+/**
+  Get the HTTP request path.
+**/
+const string& HTTPRequest::GetSubpath() {
+  return subpath;
+}
+
+/**
+  Get the HTTP request path.
+**/
+const string& HTTPRequest::GetBasepath() {
+  return basepath;
 }
 
 /**

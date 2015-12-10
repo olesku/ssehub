@@ -17,6 +17,8 @@ class SSEEvent {
     bool  compile();
     const string get();
     const string getpath();
+    const string getbasepath();
+    const string getsubpath();
     const string getid();
     void  setpath(const string path);
 
@@ -24,6 +26,8 @@ class SSEEvent {
     stringstream _json_ss;
     string _event;
     string _path;
+    string _basepath;
+    string _subpath;
     vector<string> _data;
     string _id;
     int _retry;
