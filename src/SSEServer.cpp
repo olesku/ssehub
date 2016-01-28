@@ -82,15 +82,13 @@ void SSEServer::PostHandler(SSEClient* client, HTTPRequest* req) {
   const string chName = req->GetBasepath(); 
 
   // Set the event path to the endpoint we recieved the POST on.
-  event.setpath(req->GetPath());
+  event.setpath(req->GetPath().substr(1));
 
   // Validate the event.
   validEvent = event.compile();
 
   // Check if channel exist.
   SSEChannel* ch = GetChannel(chName);
-
-  LOG(INFO) << "POST Basepath: " << chName;
 
   if (ch == NULL) {
     // Handle creation of new channels.

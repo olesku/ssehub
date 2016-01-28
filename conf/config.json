@@ -9,7 +9,7 @@
     "enablePost": true
   },
   "amqp": {
-    "enabled":true,
+    "enabled": false,
     "host": "ssehub-mq-01.int.vgnett.no",
     "port": 5672,
     "user": "guest",

@@ -43,9 +43,9 @@ class SSEClient {
     bool isSubscribed(const string key, SubscriptionType type);
     void Subscribe(const string key, SubscriptionType type);
     bool isFilterAcceptable(const string& data);
+    bool isSubscribedTarget(const string& targetName);
     int Flush();
-    bool acceptTarget(const string& targetName);
- 
+  
   private:
     int _fd;
     struct sockaddr_in _csin;

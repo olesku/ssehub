@@ -68,7 +68,7 @@ void SSEClientHandler::ProcessQueue() {
         continue;
       }
 
-      if (client->acceptTarget(msg.target)) {
+      if (client->isSubscribedTarget(msg.target)) {
         client->Send(msg.data);
       }
     }

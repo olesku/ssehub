@@ -239,6 +239,7 @@ void SSEChannel::Broadcast(const string& data) {
 void SSEChannel::Broadcast(const string& data, const string& subpath) {
   ClientHandlerList::iterator it;
   msg_t d;
+ 
   d.data = data;
   d.target = subpath;
 
@@ -341,7 +342,7 @@ void SSEChannel::CleanupMain() {
 */
 void SSEChannel::Ping() {
   while(!stop) {
-    Broadcast(":\n\n");
+    Broadcast(":\n\n", "*");
     sleep(_config.server->GetValueInt("server.pingInterval"));
   }
 }

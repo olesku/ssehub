@@ -104,9 +104,6 @@ HttpReqStatus HTTPRequest::Parse(const char *data, int len) {
     size_t bp_epos = path.find_first_of("/", 1);
     basepath = (bp_epos != string::npos) ? path.substr(1, bp_epos-1) : path.substr(1);
     subpath = (bp_epos != string::npos) ? path.substr(bp_epos+1) : "";
-
-    LOG(INFO) << "Basepath: " << basepath;
-    LOG(INFO) << "Subpath: " << subpath;
   }
 
   for (int i = 0; i < (int)phr_num_headers; i++) {

@@ -260,8 +260,9 @@ void SSEClient::SetSubpath(const string& subpath) {
   _subpath = subpath;
 }
 
-bool SSEClient::acceptTarget(const string& targetName) {  
+bool SSEClient::isSubscribedTarget(const string& targetName) {  
   if (_subpath.empty()) return true;
+  if (targetName.compare("*") == 0) return true;
   if (_subpath.compare(targetName) == 0) return true;
   if (targetName.compare(0, _subpath.length()+1, _subpath + "/") == 0) return true; 
 
