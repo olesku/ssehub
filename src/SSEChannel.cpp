@@ -92,7 +92,7 @@ void SSEChannel::InitializeCache() {
 void SSEChannel::InitializeThreads() {
   int i;
 
-  _cleanupthread = boost::thread(boost::bind(&SSEChannel::CleanupMain, this));
+  _cleanupthread = boost::thread(boost::bind(&SSEChannel::EventHandler, this));
 
   for (i = 0; i < _config.server->GetValueInt("server.threadsPerChannel"); i++) {
     _clientpool.push_back(ClientHandlerPtr(new SSEClientHandler(i)));
@@ -196,7 +196,7 @@ void SSEChannel::AddClient(SSEClient* client, HTTPRequest* req) {
       res.AppendBody(_evs_preamble_data);
     }
 
-    client->Send(res.Get());
+    client->Send(res.Get(), SND_NO_FLUSH);
 
     // Apply filters.
     if (!req->GetQueryString("filterid").empty()) client->Subscribe(req->GetQueryString("filterid"), SUBSCRIPTION_ID);
@@ -294,9 +294,9 @@ void SSEChannel::SendCache(SSEClient* client) {
 }
 
 /**
- Handle client disconnects and errors.
+ Handle EPOLL events on client socket.
 */
-void SSEChannel::CleanupMain() {
+void SSEChannel::EventHandler() {
   boost::shared_ptr<struct epoll_event[]> t_events(new struct epoll_event[1024]);
 
   while(!stop) {
@@ -323,7 +323,7 @@ void SSEChannel::CleanupMain() {
         client->MarkAsDead();
         INC_LONG(_stats.num_errors);
       } else if (t_events[i].events & EPOLLOUT) {
-        // Send data present in send buffer,
+        // Send data present in send buffer.
         DLOG(INFO) << client->GetIP() << ": EPOLLOUT, flushing send buffer.";
         size_t bytesLeft = client->Flush();
         DLOG(INFO) << "EPOLLOUT: " << bytesLeft << " bytes left.";

@@ -38,11 +38,11 @@ class SSEClient {
     void MarkAsDead();
     bool IsDead();
     void Destroy();
-    void SetDestroyAfterFlush();
     void DeleteHttpReq();
     bool isSubscribed(const string key, SubscriptionType type);
     void Subscribe(const string key, SubscriptionType type);
     bool isFilterAcceptable(const string& data);
+    void SetDestroyAfterFlush();
     bool isDestroyAfterFlush();
     size_t Flush();
 

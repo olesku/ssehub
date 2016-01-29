@@ -69,7 +69,7 @@ class SSEChannel {
 
     void InitializeCache();
     void InitializeThreads();
-    void CleanupMain();
+    void EventHandler();
     void CleanupThreads();
     void Ping();
     void SetCorsHeaders(HTTPRequest* req, HTTPResponse& res);

@@ -37,7 +37,7 @@ SSEClient::SSEClient(int fd, struct sockaddr_in* csin) {
   #endif
 
   // Set TCP_NODELAY on socket.
-  setsockopt(Getfd(), IPPROTO_TCP, TCP_NODELAY, (char*)&flag, sizeof(int));
+  //setsockopt(Getfd(), IPPROTO_TCP, TCP_NODELAY, (char*)&flag, sizeof(int));
 }
 
 /**
