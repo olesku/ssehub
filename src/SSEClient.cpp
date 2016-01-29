@@ -15,7 +15,8 @@
 SSEClient::SSEClient(int fd, struct sockaddr_in* csin) {
   _fd = fd;
   _dead = false;
- 
+  _destroyAfterFlush = false;
+
    memcpy(&_csin, csin, sizeof(struct sockaddr_in));
   DLOG(INFO) << "Initialized client with IP: " << GetIP();
 
@@ -44,6 +45,10 @@ SSEClient::SSEClient(int fd, struct sockaddr_in* csin) {
 */
 void SSEClient::Destroy() {
   delete(this);
+}
+
+void SSEClient::SetDestroyAfterFlush() {
+  _destroyAfterFlush = true;
 }
 
 /*
@@ -85,9 +90,10 @@ int SSEClient::_write_sndbuf() {
 /*
   Flush data in the sendbuffer.
 */
-int SSEClient::Flush() {
+size_t SSEClient::Flush() {
   boost::mutex::scoped_lock lock(_sndBufLock);
-  return _write_sndbuf();
+  _write_sndbuf();
+  return _sndBuf.length();
 }
 
 /**
@@ -254,4 +260,8 @@ bool SSEClient::isFilterAcceptable(const string& data) {
   }
 
   return true;
+}
+
+bool SSEClient::isDestroyAfterFlush() {
+  return _destroyAfterFlush;
 }

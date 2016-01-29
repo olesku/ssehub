@@ -38,11 +38,13 @@ class SSEClient {
     void MarkAsDead();
     bool IsDead();
     void Destroy();
+    void SetDestroyAfterFlush();
     void DeleteHttpReq();
     bool isSubscribed(const string key, SubscriptionType type);
     void Subscribe(const string key, SubscriptionType type);
     bool isFilterAcceptable(const string& data);
-    int Flush();
+    bool isDestroyAfterFlush();
+    size_t Flush();
 
    private:
     int _fd;
@@ -50,6 +52,7 @@ class SSEClient {
     bool _dead;
     bool _isEventFiltered;
     bool _isIdFiltered;
+    bool _destroyAfterFlush;
     string _sndBuf;
     vector<SubscriptionElement> _subscriptions;
     boost::mutex _sndBufLock;

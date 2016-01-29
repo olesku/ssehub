@@ -124,6 +124,9 @@ string SSEChannel::GetId() {
  @param res Response object.
 */
 void SSEChannel::SetCorsHeaders(HTTPRequest* req, HTTPResponse& res) {
+  // Set allowed headers for the EventSource IE polyfill
+  res.SetHeader("Access-Control-Allow-Headers", "Accept, Cache-Control, X-Requested-With, Last-Event-ID");
+
   if (_allow_all_origins) {
     DLOG(INFO) << "All origins allowed.";
     res.SetHeader("Access-Control-Allow-Origin", "*");
@@ -160,54 +163,61 @@ void SSEChannel::AddClient(SSEClient* client, HTTPRequest* req) {
 
   DLOG(INFO) << "Adding client to channel " << GetId();
 
-  // Send CORS headers.
-  SetCorsHeaders(req, res);
-
-   // Reply with CORS headers when we get a OPTIONS request.
+  // Reply with CORS headers when we get a OPTIONS request.
   if (req->GetMethod().compare("OPTIONS") == 0) {
-    client->Send(res.Get());
-    client->Destroy();
-    return;
+    // Set CORS headers.
+    SetCorsHeaders(req, res);
+
+    client->Send(res.Get(), SND_NO_FLUSH);
+    client->SetDestroyAfterFlush();
   }
 
   // Disallow every other method than GET.
-  if (req->GetMethod().compare("GET") != 0) {
+  else if (req->GetMethod().compare("GET") != 0) {
     DLOG(INFO) << "Method: " << req->GetMethod();
     res.SetStatus(405, "Method Not Allowed");
+    client->Send(res.Get(), SND_NO_FLUSH);
+    client->SetDestroyAfterFlush();
+  } else {
+
+    string lastEventId = req->GetHeader("Last-Event-ID");
+    if (lastEventId.empty()) lastEventId = req->GetQueryString("evs_last_event_id");
+    if (lastEventId.empty()) lastEventId = req->GetQueryString("lastEventId");
+
+    // Set initial response headers, etc.
+    res.SetHeader("Content-Type", "text/event-stream");
+    res.SetHeader("Cache-Control", "no-cache");
+    SetCorsHeaders(req, res);
+    res.SetHeader("Connection", "keep-alive");
+    res.SetBody(":ok\n\n");
+
+    // Send preamble if polyfill require it.
+    if (!req->GetQueryString("evs_preamble").empty()) {
+      res.AppendBody(_evs_preamble_data);
+    }
+
     client->Send(res.Get());
-    client->Destroy();
-    return;
+
+    // Apply filters.
+    if (!req->GetQueryString("filterid").empty()) client->Subscribe(req->GetQueryString("filterid"), SUBSCRIPTION_ID);
+    if (!req->GetQueryString("filterevent").empty()) client->Subscribe(req->GetQueryString("filterevent"), SUBSCRIPTION_EVENT_TYPE);
+
+    // Send event history if requested.
+    if (!lastEventId.empty()) {
+      SendEventsSince(client, lastEventId);
+    } else if (!req->GetQueryString("getcache").empty()) {
+      SendCache(client);
+    }
+
+    client->DeleteHttpReq();
+    INC_LONG(_stats.num_connects);
+
+    // Add client to handler thread in a round-robin fashion.
+    (*curthread)->AddClient(client);
+    curthread++;
+
+    if (curthread == _clientpool.end()) curthread = _clientpool.begin();
   }
-
-  string lastEventId = req->GetHeader("Last-Event-ID");
-  if (lastEventId.empty()) lastEventId = req->GetQueryString("evs_last_event_id");
-  if (lastEventId.empty()) lastEventId = req->GetQueryString("lastEventId");
-
-  // Send initial response headers, etc.
-  res.SetHeader("Content-Type", "text/event-stream");
-  res.SetHeader("Cache-Control", "no-cache");
-  res.SetHeader("Connection", "keep-alive");
-  res.SetBody(":ok\n\n");
-
-  // Send preamble if polyfill require it.
-  if (!req->GetQueryString("evs_preamble").empty()) {
-    res.AppendBody(_evs_preamble_data);
-  }
-
-  client->Send(res.Get());
-
-  // Apply filters.
-  if (!req->GetQueryString("filterid").empty()) client->Subscribe(req->GetQueryString("filterid"), SUBSCRIPTION_ID);
-  if (!req->GetQueryString("filterevent").empty()) client->Subscribe(req->GetQueryString("filterevent"), SUBSCRIPTION_EVENT_TYPE);
-
-  // Send event history if requested.
-  if (!lastEventId.empty()) {
-    SendEventsSince(client, lastEventId);
-  } else if (!req->GetQueryString("getcache").empty()) {
-    SendCache(client);
-  }
-
-  client->DeleteHttpReq();
 
   ev.events   = EPOLLET | EPOLLOUT | EPOLLIN | EPOLLHUP | EPOLLRDHUP | EPOLLERR;
   ev.data.ptr = client;
@@ -218,14 +228,6 @@ void SSEChannel::AddClient(SSEClient* client, HTTPRequest* req) {
     client->Destroy();
     return;
   }
-
-  INC_LONG(_stats.num_connects);
-
-  // Add client to handler thread in a round-robin fashion.
-  (*curthread)->AddClient(client);
-  curthread++;
-
-  if (curthread == _clientpool.end()) curthread = _clientpool.begin();
 }
 
 /**
@@ -323,7 +325,9 @@ void SSEChannel::CleanupMain() {
       } else if (t_events[i].events & EPOLLOUT) {
         // Send data present in send buffer,
         DLOG(INFO) << client->GetIP() << ": EPOLLOUT, flushing send buffer.";
-        client->Flush();
+        size_t bytesLeft = client->Flush();
+        DLOG(INFO) << "EPOLLOUT: " << bytesLeft << " bytes left.";
+        if (bytesLeft == 0 && client->isDestroyAfterFlush()) client->Destroy();
       }
     }
   }
