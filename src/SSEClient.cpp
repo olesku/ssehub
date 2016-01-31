@@ -48,8 +48,9 @@ void SSEClient::Destroy() {
   delete(this);
 }
 
-void SSEClient::SetDestroyAfterFlush() {
-  _destroyAfterFlush = true;
+void SSEClient::FlushAndDestroy() {
+  if (Flush() < 1) delete(this);
+  else _destroyAfterFlush = true;
 }
 
 /*
@@ -92,17 +93,9 @@ int SSEClient::_write_sndbuf() {
   Flush data in the sendbuffer.
 */
 size_t SSEClient::Flush() {
-  size_t bytesLeft = 0;
-
-  _sndBufLock.lock();
+  boost::mutex::scoped_lock(_sndBufLock);
   _write_sndbuf();
-  bytesLeft = _sndBuf.length();
-  _sndBufLock.unlock();
-
-  if (_destroyAfterFlush && _sndBuf.length() == 0) {
-    Destroy();
-  }
-  return bytesLeft;
+  return _sndBuf.length();
 }
 
 /**

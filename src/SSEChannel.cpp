@@ -160,17 +160,16 @@ void SSEChannel::AddClient(SSEClient* client, HTTPRequest* req) {
   if (req->GetMethod().compare("OPTIONS") == 0) {
     // Set CORS headers.
     SetCorsHeaders(req, res);
-
-    client->Send(res.Get(), SND_NO_FLUSH);
-    client->SetDestroyAfterFlush();
+    client->Send(res.Get());
+    client->FlushAndDestroy();;
   }
 
   // Disallow every other method than GET.
   else if (req->GetMethod().compare("GET") != 0) {
     DLOG(INFO) << "Method: " << req->GetMethod();
     res.SetStatus(405, "Method Not Allowed");
-    client->Send(res.Get(), SND_NO_FLUSH);
-    client->SetDestroyAfterFlush();
+    client->Send(res.Get());
+    client->FlushAndDestroy();
   } else {
     string lastEventId = req->GetHeader("Last-Event-ID");
     if (lastEventId.empty()) lastEventId = req->GetQueryString("evs_last_event_id");
@@ -206,15 +205,14 @@ void SSEChannel::AddClient(SSEClient* client, HTTPRequest* req) {
 
     DLOG(INFO) << "Adding client to channel " << GetId();
     client->SetChannel(this);
+    client->Flush();
 
     // Add client to handler thread in a round-robin fashion.
     (*curthread)->AddClient(client);
     curthread++;
 
     if (curthread == _clientpool.end()) curthread = _clientpool.begin();
-  }
-  
-  client->Flush();
+  }  
 }
 
 /**

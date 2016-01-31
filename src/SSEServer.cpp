@@ -429,7 +429,10 @@ void SSEServer::EventLoop() {
       }
 
       else if (eventList[i].events & EPOLLOUT)  {
-        client->Flush();
+        size_t bytesLeft = client->Flush();
+        if (client->isDestroyAfterFlush() && bytesLeft == 0) {
+          RemoveClient(client);
+        }
       } 
     }
   }

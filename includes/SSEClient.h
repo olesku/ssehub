@@ -46,7 +46,7 @@ class SSEClient {
     bool isSubscribed(const string key, SubscriptionType type);
     void Subscribe(const string key, SubscriptionType type);
     bool isFilterAcceptable(const string& data);
-    void SetDestroyAfterFlush();
+    void FlushAndDestroy();
     bool isDestroyAfterFlush();
     size_t Flush();
 
