@@ -93,9 +93,12 @@ int SSEClient::_write_sndbuf() {
   Flush data in the sendbuffer.
 */
 size_t SSEClient::Flush() {
-  boost::mutex::scoped_lock(_sndBufLock);
+  _sndBufLock.lock();
   _write_sndbuf();
-  return _sndBuf.length();
+  size_t bytesLeft = _sndBuf.length();
+  _sndBufLock.unlock();
+
+  return bytesLeft;
 }
 
 /**
@@ -127,6 +130,8 @@ int SSEClient::Read(void* buf, int len) {
 */
 SSEClient::~SSEClient() {
   DLOG(INFO) << "Destructor called for client with IP: " << GetIP();
+  _sndBufLock.lock();
+  _sndBufLock.unlock();
   if (!IsDead()) close(_fd);
 }
 
