@@ -60,7 +60,6 @@ class SSEChannel {
     ClientHandlerList::iterator curthread;
     ChannelConfig _config;
     SSEChannelStats _stats;
-    boost::thread _cleanupthread;
     boost::thread _pingthread;
     ClientHandlerList _clientpool;
     CacheInterface* _cache_adapter;
@@ -69,7 +68,6 @@ class SSEChannel {
 
     void InitializeCache();
     void InitializeThreads();
-    void EventHandler();
     void CleanupThreads();
     void Ping();
     void SetCorsHeaders(HTTPRequest* req, HTTPResponse& res);

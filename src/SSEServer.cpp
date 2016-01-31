@@ -27,10 +27,9 @@ SSEServer::SSEServer(SSEConfig *config) {
 */
 SSEServer::~SSEServer() {
   DLOG(INFO) << "SSEServer destructor called.";
-
-  pthread_cancel(_routerthread.native_handle());
-  close(_serversocket);
   close(_efd);
+  close(_serversocket);
+  _eventthreads.interrupt_all();
 }
 
 /**
@@ -149,7 +148,10 @@ void SSEServer::Run() {
 
   InitChannels();
 
-  _routerthread = boost::thread(&SSEServer::ClientRouterLoop, this);
+  for (int i=0; i < 10; i++) {
+    _eventthreads.create_thread(boost::bind(&SSEServer::EventLoop, this));
+  }
+
   AcceptLoop();
 }
 
@@ -268,7 +270,7 @@ void SSEServer::AcceptLoop() {
     SSEClient* client = new SSEClient(tmpfd, &csin);
 
     struct epoll_event event;
-    event.events = EPOLLIN | EPOLLRDHUP | EPOLLHUP | EPOLLERR;
+    event.events = EPOLLET | EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLHUP | EPOLLERR;
     event.data.ptr = static_cast<SSEClient*>(client);
 
     int ret = epoll_ctl(_efd, EPOLL_CTL_ADD, tmpfd, &event);
@@ -286,19 +288,104 @@ void SSEServer::AcceptLoop() {
 **/
 void SSEServer::RemoveClient(SSEClient* client) {
   epoll_ctl(_efd, EPOLL_CTL_DEL, client->Getfd(), NULL);
-  client->Destroy();
+
+  if (client->GetChannel() != NULL) client->MarkAsDead();
+  else client->Destroy();
+}
+
+void SSEServer::HandleRequest(SSEClient* client, char* buf, int len) {
+  // Parse the request.
+  HTTPRequest* req = client->GetHttpReq();
+  HttpReqStatus reqRet = req->Parse(buf, len);
+
+  switch(reqRet) {
+    case HTTP_REQ_INCOMPLETE: return;
+
+    case HTTP_REQ_FAILED:
+      RemoveClient(client);
+      stats.invalid_http_req++;
+    return;
+
+    case HTTP_REQ_TO_BIG:
+      RemoveClient(client);
+      stats.oversized_http_req++;
+    return;
+
+    case HTTP_REQ_OK: break;
+
+    case HTTP_REQ_POST_INVALID_LENGTH:
+      { HTTPResponse res(411, "", false); client->Send(res.Get()); }
+      RemoveClient(client);
+    return;
+
+    case HTTP_REQ_POST_TOO_LARGE:
+      DLOG(INFO) << "Client " <<  client->GetIP() << " sent too much POST data.";
+      { HTTPResponse res(413, "", false); client->Send(res.Get()); }
+      RemoveClient(client);
+    return;
+
+    case HTTP_REQ_POST_START:
+      if (!_config->GetValueBool("server.enablePost")) {
+        { HTTPResponse res(400, "", false); client->Send(res.Get()); }
+        RemoveClient(client);
+      } else {
+        { HTTPResponse res(100, "", false); client->Send(res.Get()); }
+      }
+    return;
+
+    case HTTP_REQ_POST_INCOMPLETE: return;
+
+    case HTTP_REQ_POST_OK:
+      if (_config->GetValueBool("server.enablePost")) {
+        PostHandler(client, req);
+      } else {
+        { HTTPResponse res(400, "", false); client->Send(res.Get()); }
+      }
+
+      RemoveClient(client);
+    return;
+  } 
+
+  if (!req->GetPath().empty()) {
+    // Handle /stats endpoint.
+    if (req->GetPath().compare("/stats") == 0) {
+      stats.SendToClient(client);
+      return;
+    } else if (req->GetPath().compare("/") == 0) {
+      HTTPResponse res;
+      res.SetBody("OK\n");
+      client->Send(res.Get());
+      RemoveClient(client);
+      return;          
+    }
+
+    string chName = req->GetPath().substr(1);
+    SSEChannel *ch = GetChannel(chName);
+
+    DLOG(INFO) << "Channel: " << chName;
+
+    if (ch != NULL) {
+      ch->AddClient(client, req);
+    } else {
+      HTTPResponse res;
+      res.SetStatus(404);
+      res.SetBody("Channel does not exist.\n");
+      client->Send(res.Get());
+      RemoveClient(client);
+    }
+  }
 }
 
 /**
   Read request and route client to the requested channel.
 */
-void SSEServer::ClientRouterLoop() {
+void SSEServer::EventLoop() {
   char buf[4096];
   boost::shared_ptr<struct epoll_event[]> eventList(new struct epoll_event[MAXEVENTS]);
 
   LOG(INFO) << "Started client router thread.";
 
-  while(1) {
+  while(!stop) {
     int n = epoll_wait(_efd, eventList.get(), MAXEVENTS, -1);
 
     for (int i = 0; i < n; i++) {
@@ -310,107 +397,40 @@ void SSEServer::ClientRouterLoop() {
         DLOG(WARNING) << "Error occurred while reading data from client " << client->GetIP() << ".";
         RemoveClient(client);
         stats.router_read_errors++;
-        continue;
       }
 
-      if ((eventList[i].events & EPOLLHUP) || (eventList[i].events & EPOLLRDHUP)) {
+      else if ((eventList[i].events & EPOLLHUP) || (eventList[i].events & EPOLLRDHUP)) {
         DLOG(WARNING) << "Client " << client->GetIP() << " hung up in router thread.";
         RemoveClient(client);
-        continue;
       }
 
-      // Read from client.
-      size_t len = client->Read(&buf, 4096);
+      else if (eventList[i].events & EPOLLIN) { 
+        // Read from client.
+        
+       for(;;) {
+        int len = client->Read(&buf, RECV_BUFSIZ);
+        
+        // Socket error.
+        if (len == -1) break;
 
-      if (len <= 0) {
-        stats.router_read_errors++;
-        RemoveClient(client);
-        continue;
+        // Client disconnect.
+        else if (len == 0) {
+          stats.router_read_errors++;
+          RemoveClient(client);
+          break;
+        }
+
+        else if (client->GetChannel() == NULL) {
+          HandleRequest(client, buf, len);
+        }
+
+        if (len < RECV_BUFSIZ) break;
+       }
       }
 
-      buf[len] = '\0';
-
-      // Parse the request.
-      HTTPRequest* req = client->GetHttpReq();
-      HttpReqStatus reqRet = req->Parse(buf, len);
-
-      switch(reqRet) {
-        case HTTP_REQ_INCOMPLETE: continue;
-
-        case HTTP_REQ_FAILED:
-         RemoveClient(client);
-         stats.invalid_http_req++;
-         continue;
-
-        case HTTP_REQ_TO_BIG:
-         RemoveClient(client);
-         stats.oversized_http_req++;
-         continue;
-
-        case HTTP_REQ_OK: break;
-
-        case HTTP_REQ_POST_INVALID_LENGTH:
-          { HTTPResponse res(411, "", false); client->Send(res.Get()); }
-          RemoveClient(client);
-          continue;
-
-        case HTTP_REQ_POST_TOO_LARGE:
-          DLOG(INFO) << "Client " <<  client->GetIP() << " sent too much POST data.";
-          { HTTPResponse res(413, "", false); client->Send(res.Get()); }
-          RemoveClient(client);
-          continue;
-
-        case HTTP_REQ_POST_START:
-          if (!_config->GetValueBool("server.enablePost")) {
-            { HTTPResponse res(400, "", false); client->Send(res.Get()); }
-            RemoveClient(client);
-          } else {
-            { HTTPResponse res(100, "", false); client->Send(res.Get()); }
-          }
-          continue;
-
-        case HTTP_REQ_POST_INCOMPLETE: continue;
-
-        case HTTP_REQ_POST_OK:
-          if (_config->GetValueBool("server.enablePost")) {
-            PostHandler(client, req);
-          } else {
-            { HTTPResponse res(400, "", false); client->Send(res.Get()); }
-          }
-
-          RemoveClient(client);
-          continue;
+      else if (eventList[i].events & EPOLLOUT)  {
+        client->Flush();
       } 
-
-      if (!req->GetPath().empty()) {
-        // Handle /stats endpoint.
-        if (req->GetPath().compare("/stats") == 0) {
-          stats.SendToClient(client);
-          continue;
-        } else if (req->GetPath().compare("/") == 0) {
-          HTTPResponse res;
-          res.SetBody("OK\n");
-          client->Send(res.Get());
-          RemoveClient(client);
-          continue;          
-        }
-
-        string chName = req->GetPath().substr(1);
-        SSEChannel *ch = GetChannel(chName);
-
-        DLOG(INFO) << "Channel: " << chName;
-
-        if (ch != NULL) {
-          epoll_ctl(_efd, EPOLL_CTL_DEL, client->Getfd(), NULL);
-          ch->AddClient(client, req);
-        } else {
-          HTTPResponse res;
-          res.SetStatus(404);
-          res.SetBody("Channel does not exist.\n");
-          client->Send(res.Get());
-          RemoveClient(client);
-        }
-      }
     }
   }
 }

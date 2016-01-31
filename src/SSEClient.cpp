@@ -14,6 +14,7 @@
 */
 SSEClient::SSEClient(int fd, struct sockaddr_in* csin) {
   _fd = fd;
+  _channel = NULL;
   _dead = false;
   _destroyAfterFlush = false;
 
@@ -91,9 +92,17 @@ int SSEClient::_write_sndbuf() {
   Flush data in the sendbuffer.
 */
 size_t SSEClient::Flush() {
-  boost::mutex::scoped_lock lock(_sndBufLock);
+  size_t bytesLeft = 0;
+
+  _sndBufLock.lock();
   _write_sndbuf();
-  return _sndBuf.length();
+  bytesLeft = _sndBuf.length();
+  _sndBufLock.unlock();
+
+  if (_destroyAfterFlush && _sndBuf.length() == 0) {
+    Destroy();
+  }
+  return bytesLeft;
 }
 
 /**
@@ -116,7 +125,7 @@ int SSEClient::Send(const string &data, bool flush) {
  @param buf Pointer to buffer where data should be read into.
  @param len Bytes to read.
 */
-size_t SSEClient::Read(void* buf, int len) {
+int SSEClient::Read(void* buf, int len) {
   return read(_fd, buf, len);
 }
 
@@ -264,4 +273,13 @@ bool SSEClient::isFilterAcceptable(const string& data) {
 
 bool SSEClient::isDestroyAfterFlush() {
   return _destroyAfterFlush;
+}
+
+
+void SSEClient::SetChannel(SSEChannel* chan) {
+  _channel = chan;
+}
+
+SSEChannel* SSEClient::GetChannel() {
+  return _channel;
 }

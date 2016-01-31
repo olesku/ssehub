@@ -17,7 +17,8 @@
 #include <boost/shared_ptr.hpp>
 #include "SSEEvent.h"
 #include "SSEStatsHandler.h"
-#define MAXEVENTS 1024
+#define MAXEVENTS 4096
+#define RECV_BUFSIZ 4096
 
 extern int stop;
 
@@ -45,18 +46,19 @@ class SSEServer {
     SSEChannelList _channels;
     boost::shared_ptr<SSEInputSource> _datasource;
     SSEStatsHandler stats;
-    boost::thread _routerthread;
+    boost::thread_group _eventthreads;
     int _serversocket;
     int _efd;
     struct sockaddr_in _sin;
 
     void InitSocket();
     void AcceptLoop();
-    void ClientRouterLoop();
+    void EventLoop();
     void PostHandler(SSEClient* client, HTTPRequest* req);
     void InitChannels();
     void RemoveClient(SSEClient* client);
     SSEChannel* GetChannel(const std::string id, bool create=false);
+    void HandleRequest(SSEClient* client, char* buf, int len);
 };
 
 #endif

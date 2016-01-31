@@ -92,8 +92,6 @@ void SSEChannel::InitializeCache() {
 void SSEChannel::InitializeThreads() {
   int i;
 
-  _cleanupthread = boost::thread(boost::bind(&SSEChannel::EventHandler, this));
-
   for (i = 0; i < _config.server->GetValueInt("server.threadsPerChannel"); i++) {
     _clientpool.push_back(ClientHandlerPtr(new SSEClientHandler(i)));
   }
@@ -108,7 +106,6 @@ void SSEChannel::InitializeThreads() {
 */
 void SSEChannel::CleanupThreads() {
   pthread_cancel(_pingthread.native_handle());
-  pthread_cancel(_cleanupthread.native_handle());
 }
 
 /**
@@ -158,10 +155,6 @@ void SSEChannel::SetCorsHeaders(HTTPRequest* req, HTTPResponse& res) {
 */
 void SSEChannel::AddClient(SSEClient* client, HTTPRequest* req) {
   HTTPResponse res;
-  struct epoll_event ev;
-  int ret;
-
-  DLOG(INFO) << "Adding client to channel " << GetId();
 
   // Reply with CORS headers when we get a OPTIONS request.
   if (req->GetMethod().compare("OPTIONS") == 0) {
@@ -179,7 +172,6 @@ void SSEChannel::AddClient(SSEClient* client, HTTPRequest* req) {
     client->Send(res.Get(), SND_NO_FLUSH);
     client->SetDestroyAfterFlush();
   } else {
-
     string lastEventId = req->GetHeader("Last-Event-ID");
     if (lastEventId.empty()) lastEventId = req->GetQueryString("evs_last_event_id");
     if (lastEventId.empty()) lastEventId = req->GetQueryString("lastEventId");
@@ -212,22 +204,17 @@ void SSEChannel::AddClient(SSEClient* client, HTTPRequest* req) {
     client->DeleteHttpReq();
     INC_LONG(_stats.num_connects);
 
+    DLOG(INFO) << "Adding client to channel " << GetId();
+    client->SetChannel(this);
+
     // Add client to handler thread in a round-robin fashion.
     (*curthread)->AddClient(client);
     curthread++;
 
     if (curthread == _clientpool.end()) curthread = _clientpool.begin();
   }
-
-  ev.events   = EPOLLET | EPOLLOUT | EPOLLIN | EPOLLHUP | EPOLLRDHUP | EPOLLERR;
-  ev.data.ptr = client;
-  ret = epoll_ctl(_efd, EPOLL_CTL_ADD, client->Getfd(), &ev);
-
-  if (ret == -1) {
-    DLOG(ERROR) << "Failed to add client " << client->GetIP() << " to epoll event list.";
-    client->Destroy();
-    return;
-  }
+  
+  client->Flush();
 }
 
 /**
@@ -290,46 +277,6 @@ void SSEChannel::SendCache(SSEClient* client) {
 
   BOOST_FOREACH(const string& event, events) {
     client->Send(event, SND_NO_FLUSH);
-  }
-}
-
-/**
- Handle EPOLL events on client socket.
-*/
-void SSEChannel::EventHandler() {
-  boost::shared_ptr<struct epoll_event[]> t_events(new struct epoll_event[1024]);
-
-  while(!stop) {
-    int n = epoll_wait(_efd, t_events.get(), 1024, -1);
-
-    for (int i = 0; i < n; i++) {
-      SSEClient* client;
-      client = static_cast<SSEClient*>(t_events[i].data.ptr);
-
-      if (t_events[i].events & EPOLLIN) {
-        char buf[512];
-        int rcv_len = client->Read(buf, 512);
-        if (rcv_len <= 0) {
-          client->MarkAsDead();
-          INC_LONG(_stats.num_disconnects);
-        }
-      } else if ((t_events[i].events & EPOLLHUP)  || (t_events[i].events & EPOLLRDHUP)) {
-        DLOG(INFO) << "Channel " << _config.id << ": Client disconnected.";
-        client->MarkAsDead();
-        INC_LONG(_stats.num_disconnects);
-      } else if (t_events[i].events & EPOLLERR) {
-        // If an error occurs on a client socket, just drop the connection.
-        DLOG(INFO) << "Channel " << _config.id << ": Error on client socket: " << strerror(errno);
-        client->MarkAsDead();
-        INC_LONG(_stats.num_errors);
-      } else if (t_events[i].events & EPOLLOUT) {
-        // Send data present in send buffer.
-        DLOG(INFO) << client->GetIP() << ": EPOLLOUT, flushing send buffer.";
-        size_t bytesLeft = client->Flush();
-        DLOG(INFO) << "EPOLLOUT: " << bytesLeft << " bytes left.";
-        if (bytesLeft == 0 && client->isDestroyAfterFlush()) client->Destroy();
-      }
-    }
   }
 }
 

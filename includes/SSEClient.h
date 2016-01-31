@@ -13,6 +13,8 @@
 #define IOVEC_SIZE 512
 #define SND_NO_FLUSH false
 
+class SSEChannel;
+
 enum SubscriptionType {
   SUBSCRIPTION_ID,
   SUBSCRIPTION_EVENT_TYPE
@@ -30,11 +32,13 @@ class SSEClient {
     SSEClient(int, struct sockaddr_in* csin);
     ~SSEClient();
     int Send(const string &data, bool flush=true);
-    size_t Read(void* buf, int len);
+    int Read(void* buf, int len);
     int Getfd();
+    SSEChannel* GetChannel();
     HTTPRequest* GetHttpReq();
     const string GetIP();
     uint32_t GetSockAddr();
+    void SetChannel(SSEChannel* chan);
     void MarkAsDead();
     bool IsDead();
     void Destroy();
@@ -50,6 +54,7 @@ class SSEClient {
     int _fd;
     struct sockaddr_in _csin;
     bool _dead;
+    SSEChannel* _channel;
     bool _isEventFiltered;
     bool _isIdFiltered;
     bool _destroyAfterFlush;
