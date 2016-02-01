@@ -59,6 +59,7 @@ class SSEServer {
     void RemoveClient(SSEClient* client);
     SSEChannel* GetChannel(const std::string id, bool create=false);
     void HandleRequest(SSEClient* client, char* buf, int len);
+    void RearmClientSocket(SSEClient* client);
 };
 
 #endif

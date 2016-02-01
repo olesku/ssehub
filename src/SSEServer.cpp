@@ -270,7 +270,7 @@ void SSEServer::AcceptLoop() {
     SSEClient* client = new SSEClient(tmpfd, &csin);
 
     struct epoll_event event;
-    event.events = EPOLLET | EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLHUP | EPOLLERR;
+    event.events = EPOLLET | EPOLLONESHOT | EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLHUP | EPOLLERR;
     event.data.ptr = static_cast<SSEClient*>(client);
 
     int ret = epoll_ctl(_efd, EPOLL_CTL_ADD, tmpfd, &event);
@@ -293,13 +293,23 @@ void SSEServer::RemoveClient(SSEClient* client) {
   else client->Destroy();
 }
 
+void SSEServer::RearmClientSocket(SSEClient* client) {
+  struct epoll_event event;
+  event.events = EPOLLET | EPOLLONESHOT | EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLHUP | EPOLLERR;
+  event.data.ptr = static_cast<SSEClient*>(client);
+
+  epoll_ctl(_efd, EPOLL_CTL_MOD, client->Getfd(), &event);
+}
+
 void SSEServer::HandleRequest(SSEClient* client, char* buf, int len) {
   // Parse the request.
   HTTPRequest* req = client->GetHttpReq();
   HttpReqStatus reqRet = req->Parse(buf, len);
 
   switch(reqRet) {
-    case HTTP_REQ_INCOMPLETE: return;
+    case HTTP_REQ_INCOMPLETE: 
+      RearmClientSocket(client);  
+    return;
 
     case HTTP_REQ_FAILED:
       RemoveClient(client);
@@ -330,10 +340,13 @@ void SSEServer::HandleRequest(SSEClient* client, char* buf, int len) {
         RemoveClient(client);
       } else {
         { HTTPResponse res(100, "", false); client->Send(res.Get()); }
+        RearmClientSocket(client);  
       }
     return;
 
-    case HTTP_REQ_POST_INCOMPLETE: return;
+    case HTTP_REQ_POST_INCOMPLETE: 
+      RearmClientSocket(client);  
+    return;
 
     case HTTP_REQ_POST_OK:
       if (_config->GetValueBool("server.enablePost")) {
@@ -366,6 +379,7 @@ void SSEServer::HandleRequest(SSEClient* client, char* buf, int len) {
 
     if (ch != NULL) {
       ch->AddClient(client, req);
+      RearmClientSocket(client);  
     } else {
       HTTPResponse res;
       res.SetStatus(404);
@@ -422,6 +436,8 @@ void SSEServer::EventLoop() {
 
         else if (client->GetChannel() == NULL) {
           HandleRequest(client, buf, len);
+        } else {
+          RearmClientSocket(client);
         }
 
         if (len < RECV_BUFSIZ) break;
@@ -432,6 +448,8 @@ void SSEServer::EventLoop() {
         size_t bytesLeft = client->Flush();
         if (client->isDestroyAfterFlush() && bytesLeft == 0) {
           RemoveClient(client);
+        } else {
+          RearmClientSocket(client);
         }
       } 
     }

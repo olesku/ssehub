@@ -130,8 +130,6 @@ int SSEClient::Read(void* buf, int len) {
 */
 SSEClient::~SSEClient() {
   DLOG(INFO) << "Destructor called for client with IP: " << GetIP();
-  _sndBufLock.lock();
-  _sndBufLock.unlock();
   if (!IsDead()) close(_fd);
 }
 
