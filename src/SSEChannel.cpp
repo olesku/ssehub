@@ -161,7 +161,7 @@ void SSEChannel::AddClient(SSEClient* client, HTTPRequest* req) {
     // Set CORS headers.
     SetCorsHeaders(req, res);
     client->Send(res.Get());
-    client->FlushAndDestroy();;
+    client->Destroy();
   }
 
   // Disallow every other method than GET.
@@ -169,7 +169,7 @@ void SSEChannel::AddClient(SSEClient* client, HTTPRequest* req) {
     DLOG(INFO) << "Method: " << req->GetMethod();
     res.SetStatus(405, "Method Not Allowed");
     client->Send(res.Get());
-    client->FlushAndDestroy();
+    client->Destroy();
   } else {
     string lastEventId = req->GetHeader("Last-Event-ID");
     if (lastEventId.empty()) lastEventId = req->GetQueryString("evs_last_event_id");

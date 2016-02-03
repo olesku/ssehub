@@ -425,7 +425,10 @@ void SSEServer::EventLoop() {
         int len = client->Read(&buf, RECV_BUFSIZ);
         
         // Socket error.
-        if (len == -1) break;
+        if (len == -1) {
+          RemoveClient(client);
+          break;
+        }
 
         // Client disconnect.
         else if (len == 0) {
@@ -446,11 +449,11 @@ void SSEServer::EventLoop() {
 
       else if (eventList[i].events & EPOLLOUT)  {
         size_t bytesLeft = client->Flush();
-        if (client->isDestroyAfterFlush() && bytesLeft == 0) {
-          RemoveClient(client);
-        } else {
+       // if (client->isDestroyAfterFlush() && bytesLeft == 0) {
+       //   RemoveClient(client);
+       // } else {
           RearmClientSocket(client);
-        }
+       // }
       } 
     }
   }
