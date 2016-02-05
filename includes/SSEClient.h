@@ -49,7 +49,6 @@ class SSEClient {
     void FlushAndDestroy();
     bool isDestroyAfterFlush();
     size_t Flush();
-    boost::mutex lock;
 
    private:
     int _fd;
@@ -61,7 +60,6 @@ class SSEClient {
     bool _destroyAfterFlush;
     string _sndBuf;
     vector<SubscriptionElement> _subscriptions;
-    boost::mutex _sndBufLock;
     boost::shared_ptr<HTTPRequest> m_httpReq;
     size_t _prune_sendbuffer_bytes(size_t bytes);
     int _write_sndbuf();

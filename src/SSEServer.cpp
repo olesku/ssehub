@@ -406,8 +406,6 @@ void SSEServer::EventLoop() {
       SSEClient* client;
       client = static_cast<SSEClient*>(eventList[i].data.ptr);
 
-      boost::mutex::scoped_lock lock(client->lock);
-
       // Close socket if an error occurs.
       if (eventList[i].events & EPOLLERR) {
         DLOG(WARNING) << "Error occurred while reading data from client " << client->GetIP() << ".";
@@ -451,11 +449,11 @@ void SSEServer::EventLoop() {
 
       else if (eventList[i].events & EPOLLOUT)  {
         size_t bytesLeft = client->Flush();
-       // if (client->isDestroyAfterFlush() && bytesLeft == 0) {
-       //   RemoveClient(client);
-       // } else {
+        if (client->isDestroyAfterFlush() && bytesLeft == 0) {
+          RemoveClient(client);
+        } else {
           RearmClientSocket(client);
-       // }
+        }
       } 
     }
   }

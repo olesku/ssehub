@@ -93,7 +93,6 @@ int SSEClient::_write_sndbuf() {
   Flush data in the sendbuffer.
 */
 size_t SSEClient::Flush() {
-  boost::mutex::scoped_lock lock(_sndBufLock);
   _write_sndbuf();
   size_t bytesLeft = _sndBuf.length();
   return bytesLeft;
@@ -106,9 +105,7 @@ size_t SSEClient::Flush() {
 int SSEClient::Send(const string &data, bool flush) {
   if (!isFilterAcceptable(data)) return 0;
 
-  _sndBufLock.lock();
   _sndBuf.append(data);
-  _sndBufLock.unlock();
 
   if (flush) Flush();
   return _sndBuf.length();
