@@ -406,6 +406,8 @@ void SSEServer::EventLoop() {
       SSEClient* client;
       client = static_cast<SSEClient*>(eventList[i].data.ptr);
 
+      boost::mutex::scoped_lock lock(client->lock);
+
       // Close socket if an error occurs.
       if (eventList[i].events & EPOLLERR) {
         DLOG(WARNING) << "Error occurred while reading data from client " << client->GetIP() << ".";

@@ -49,6 +49,7 @@ class SSEClient {
     void FlushAndDestroy();
     bool isDestroyAfterFlush();
     size_t Flush();
+    boost::mutex lock;
 
    private:
     int _fd;
