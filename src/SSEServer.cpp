@@ -148,7 +148,7 @@ void SSEServer::Run() {
 
   InitChannels();
 
-  for (int i=0; i < 10; i++) {
+  for (int i=0; i < 4; i++) {
     _eventthreads.create_thread(boost::bind(&SSEServer::EventLoop, this));
   }
 
