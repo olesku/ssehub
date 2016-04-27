@@ -1,10 +1,10 @@
 #include <iostream>
 #include <signal.h>
+#include <sys/wait.h>
 #include <boost/program_options.hpp>
 #include "Common.h"
 #include "SSEConfig.h"
 #include "SSEServer.h"
-#include <boost/thread/thread.hpp>
 #define DEFAULT_CONFIG_FILE "./conf/config.json"
 
 using namespace std;
@@ -28,14 +28,11 @@ po::variables_map parse_options(po::options_description desc, int argc, char **a
   return vm;
 }
 
-void ServerThread(SSEConfig &conf) {
-  SSEServer server(&conf);
-  server.Run();
-}
-
 int main(int argc, char **argv) {
   struct sigaction sa;
   int i;
+  int n = 3;
+  pid_t pids[5];
 
   FLAGS_logtostderr = 1;
   google::InitGoogleLogging(argv[0]);
@@ -53,8 +50,6 @@ int main(int argc, char **argv) {
   }
 
   std::string conf_path = vm["config"].as<std::string>();
-  SSEConfig conf;
-  conf.load(conf_path.c_str());
 
   sa.sa_handler = shutdown;
   sa.sa_flags   = 0;
@@ -62,13 +57,30 @@ int main(int argc, char **argv) {
   sigemptyset(&(sa.sa_mask));
   sigaction(SIGINT, &sa, NULL);
 
-  for (i=0; i<4; i++) {
-    LOG(INFO) << "Starting worker " << (i+1);
-    serverThreads.create_thread(boost::bind(&ServerThread, conf));
-    cout << endl;
+  for (i=0; i<n; ++i) {
+    pids[i] = fork();
+
+    if (pids[i] < 0) {
+      LOG(ERROR) << "Could not fork fork() worker " << i;
+      abort();
+    } else if (pids[i] == 0) {
+      SSEConfig conf;
+      conf.load(conf_path.c_str());
+
+      SSEServer server(&conf);
+      server.Run();
+      exit(0);
+    }
+
+    LOG(INFO) << "Started worker with PID: " << pids[i];
   }
 
-  serverThreads.join_all();
+  int status;
+  for(i = 0; i < n; ++i) {
+    waitpid(pids[i], &status, 0);
+    LOG(INFO) << "Worker with pid " << pids[i] << " exited.";
+  }
+
 
   return 0;
 }
