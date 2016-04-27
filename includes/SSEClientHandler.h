@@ -29,6 +29,7 @@ class SSEClientHandler {
     size_t _connected_clients;
     SSEClientPtrList _clientlist;
     boost::mutex _clientlist_lock;
+    boost::mutex _add_lock;
     boost::thread _processorthread;
     ConcurrentQueue<std::string> _msgqueue;
 
