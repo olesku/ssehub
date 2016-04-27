@@ -4,17 +4,19 @@
 #include "Common.h"
 #include "SSEConfig.h"
 #include "SSEServer.h"
-
+#include <boost/thread/thread.hpp>
 #define DEFAULT_CONFIG_FILE "./conf/config.json"
 
 using namespace std;
 namespace po = boost::program_options;
 
 int stop = 0;
+boost::thread_group serverThreads;
 
 void shutdown(int sigid) {
   LOG(INFO) << "Exiting.";
   stop = 1;
+  serverThreads.interrupt_all();
 }
 
 po::variables_map parse_options(po::options_description desc, int argc, char **argv) {
@@ -26,8 +28,14 @@ po::variables_map parse_options(po::options_description desc, int argc, char **a
   return vm;
 }
 
+void ServerThread(SSEConfig &conf) {
+  SSEServer server(&conf);
+  server.Run();
+}
+
 int main(int argc, char **argv) {
   struct sigaction sa;
+  int i;
 
   FLAGS_logtostderr = 1;
   google::InitGoogleLogging(argv[0]);
@@ -54,8 +62,13 @@ int main(int argc, char **argv) {
   sigemptyset(&(sa.sa_mask));
   sigaction(SIGINT, &sa, NULL);
 
-  SSEServer server(&conf);
-  server.Run();
+  for (i=0; i<4; i++) {
+    LOG(INFO) << "Starting worker " << (i+1);
+    serverThreads.create_thread(boost::bind(&ServerThread, conf));
+    cout << endl;
+  }
+
+  serverThreads.join_all();
 
   return 0;
 }
