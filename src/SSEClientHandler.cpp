@@ -39,9 +39,10 @@ SSEClientHandler::~SSEClientHandler() {
   @param client SSEClient pointer.
 */
 void SSEClientHandler::AddClient(SSEClient* client) {
-  boost::mutex::scoped_lock(_add_lock);
+  _add_lock.lock();
   _clientlist.push_back(SSEClientPtr(client));
   _connected_clients++;
+  _add_lock.unlock();
   DLOG(INFO) << "Client added to thread id: " << _id;
 }
 
