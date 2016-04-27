@@ -93,8 +93,15 @@ int SSEClient::_write_sndbuf() {
   Flush data in the sendbuffer.
 */
 size_t SSEClient::Flush() {
-  _write_sndbuf();
-  size_t bytesLeft = _sndBuf.length();
+  size_t bytesLeft = 0;
+
+  try {
+    _write_sndbuf();
+    bytesLeft = _sndBuf.length();
+  } catch (std::exception &e) {
+    LOG(INFO) << "Exception in Flush(): " << e.what();
+  }
+
   return bytesLeft;
 }
 
