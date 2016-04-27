@@ -56,7 +56,6 @@ class SSEChannel {
     const ChannelConfig& GetConfig();
 
   private:
-    int _efd;
     ClientHandlerList::iterator curthread;
     ChannelConfig _config;
     SSEChannelStats _stats;

@@ -395,12 +395,13 @@ void SSEServer::HandleRequest(SSEClient* client, char* buf, int len) {
 */
 void SSEServer::EventLoop() {
   char buf[4096];
-  boost::shared_ptr<struct epoll_event[]> eventList(new struct epoll_event[MAXEVENTS]);
+  //boost::shared_ptr<struct epoll_event[]> eventList(new struct epoll_event[MAXEVENTS]);
+  struct epoll_event eventList[MAXEVENTS];
 
   LOG(INFO) << "Started client router thread.";
 
   while(!stop) {
-    int n = epoll_wait(_efd, eventList.get(), MAXEVENTS, -1);
+    int n = epoll_wait(_efd, eventList, MAXEVENTS, -1);
 
     for (int i = 0; i < n; i++) {
       SSEClient* client;

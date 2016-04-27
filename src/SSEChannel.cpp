@@ -22,9 +22,6 @@ SSEChannel::SSEChannel(ChannelConfig conf, string id) {
   _config = conf;
   _config.id = id;
 
-  _efd = epoll_create1(0);
-  LOG_IF(FATAL, _efd == -1) << "epoll_create1 failed.";
-
   // Initialize counters.
   _stats.num_clients            = 0;
   _stats.num_connects           = 0;
