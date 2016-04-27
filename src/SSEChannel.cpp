@@ -176,7 +176,7 @@ void SSEChannel::AddClient(SSEClient* client, HTTPRequest* req) {
     res.SetHeader("Content-Type", "text/event-stream");
     res.SetHeader("Cache-Control", "no-cache");
     SetCorsHeaders(req, res);
-    res.SetHeader("Connection", "keep-alive");
+    res.SetHeader("Connection", "close");
     res.SetBody(":ok\n\n");
 
     // Send preamble if polyfill require it.
