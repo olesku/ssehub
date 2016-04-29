@@ -17,7 +17,6 @@
 #include <boost/shared_ptr.hpp>
 #include "SSEEvent.h"
 #include "SSEStatsHandler.h"
-#define MAXEVENTS 1024
 
 extern int stop;
 

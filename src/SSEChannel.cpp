@@ -186,17 +186,29 @@ void SSEChannel::AddClient(SSEClient* client, HTTPRequest* req) {
   if (lastEventId.empty()) lastEventId = req->GetQueryString("evs_last_event_id");
   if (lastEventId.empty()) lastEventId = req->GetQueryString("lastEventId");
 
-  // Send initial response headers, etc.
+  // Initial response headers, etc.
   res.SetHeader("Content-Type", "text/event-stream");
   res.SetHeader("Cache-Control", "no-cache");
   res.SetHeader("Connection", "close");
   res.SetBody(":ok\n\n");
 
-  // Send preamble if polyfill require it.
+  // Preamble if polyfill require it.
   if (!req->GetQueryString("evs_preamble").empty()) {
     res.AppendBody(_evs_preamble_data);
   }
 
+  // Add client to epoll socket list.
+  ev.events   = EPOLLET | EPOLLOUT | EPOLLIN | EPOLLHUP | EPOLLRDHUP | EPOLLERR;
+  ev.data.ptr = client;
+  ret = epoll_ctl(_efd, EPOLL_CTL_ADD, client->Getfd(), &ev);
+
+  if (ret == -1) {
+    DLOG(ERROR) << "Failed to add client " << client->GetIP() << " to epoll event list.";
+    client->Destroy();
+    return;
+  }
+
+  // Send the response.
   client->Send(res.Get());
 
   // Apply filters.
@@ -211,16 +223,6 @@ void SSEChannel::AddClient(SSEClient* client, HTTPRequest* req) {
   }
 
   client->DeleteHttpReq();
-
-  ev.events   = EPOLLET | EPOLLOUT | EPOLLIN | EPOLLHUP | EPOLLRDHUP | EPOLLERR;
-  ev.data.ptr = client;
-  ret = epoll_ctl(_efd, EPOLL_CTL_ADD, client->Getfd(), &ev);
-
-  if (ret == -1) {
-    DLOG(ERROR) << "Failed to add client " << client->GetIP() << " to epoll event list.";
-    client->Destroy();
-    return;
-  }
 
   INC_LONG(_stats.num_connects);
 
@@ -279,6 +281,8 @@ void SSEChannel::SendEventsSince(SSEClient* client, string lastId) {
   BOOST_FOREACH(const string& event, events) {
     client->Send(event, SND_NO_FLUSH);
   }
+
+  client->Flush();
 }
 
 /**
@@ -292,16 +296,18 @@ void SSEChannel::SendCache(SSEClient* client) {
   BOOST_FOREACH(const string& event, events) {
     client->Send(event, SND_NO_FLUSH);
   }
+
+  client->Flush();
 }
 
 /**
  Handle client disconnects and errors.
 */
 void SSEChannel::CleanupMain() {
-  boost::shared_ptr<struct epoll_event[]> t_events(new struct epoll_event[1024]);
+  boost::shared_ptr<struct epoll_event[]> t_events(new struct epoll_event[MAXEVENTS]);
 
   while(!stop) {
-    int n = epoll_wait(_efd, t_events.get(), 1024, -1);
+    int n = epoll_wait(_efd, t_events.get(), MAXEVENTS, -1);
 
     for (int i = 0; i < n; i++) {
       SSEClient* client;
