@@ -53,7 +53,7 @@ void SSEClient::Destroy() {
 size_t SSEClient::_prune_sendbuffer_bytes(size_t bytes) {
 
   if (_sndBuf.length() < 1) return 0;
-  if (bytes > _sndBuf.size()) _sndBuf.clear();
+  if (bytes >= _sndBuf.size()) _sndBuf.clear();
 
   _sndBuf = _sndBuf.substr(bytes, _sndBuf.length() - bytes);
 

@@ -2,6 +2,8 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <boost/program_options.hpp>
+#include <boost/foreach.hpp>
+#include <unistd.h>
 #include "Common.h"
 #include "SSEConfig.h"
 #include "SSEServer.h"
@@ -28,11 +30,17 @@ po::variables_map parse_options(po::options_description desc, int argc, char **a
   return vm;
 }
 
+void StartServer(const string& conf_path) {
+  SSEConfig conf;
+  conf.load(conf_path.c_str());
+  SSEServer server(&conf);
+  server.Run();
+  exit(0);
+}
+
 int main(int argc, char **argv) {
   struct sigaction sa;
-  int i;
-  int n = 3;
-  pid_t pids[5];
+  vector<int> worker_pids;
 
   FLAGS_logtostderr = 1;
   google::InitGoogleLogging(argv[0]);
@@ -57,30 +65,33 @@ int main(int argc, char **argv) {
   sigemptyset(&(sa.sa_mask));
   sigaction(SIGINT, &sa, NULL);
 
-  for (i=0; i<n; ++i) {
-    pids[i] = fork();
+  long nCPUS = sysconf(_SC_NPROCESSORS_ONLN);
+  (nCPUS > 0) || (nCPUS = 1);
 
-    if (pids[i] < 0) {
+  if (nCPUS == 1) {
+   StartServer(conf_path); 
+  }
+
+  LOG(INFO) << "Starting " << nCPUS << " workers.";
+  for (int i = 0; i < nCPUS; i++) {
+    int _pid = fork();
+
+    if (_pid < 0) {
       LOG(ERROR) << "Could not fork fork() worker " << i;
       abort();
-    } else if (pids[i] == 0) {
-      SSEConfig conf;
-      conf.load(conf_path.c_str());
-
-      SSEServer server(&conf);
-      server.Run();
-      exit(0);
+    } else if (_pid == 0) {
+      StartServer(conf_path);
     }
 
-    LOG(INFO) << "Started worker with PID: " << pids[i];
+    LOG(INFO) << "Started worker with PID: " << _pid;
+    worker_pids.push_back(_pid);
   }
 
-  int status;
-  for(i = 0; i < n; ++i) {
-    waitpid(pids[i], &status, 0);
-    LOG(INFO) << "Worker with pid " << pids[i] << " exited.";
+  BOOST_FOREACH(int worker_pid, worker_pids) {
+    int status;
+    waitpid(worker_pid, &status, 0);
+    LOG(INFO) << "Worker with pid " << worker_pid << " exited.";
   }
-
 
   return 0;
 }
