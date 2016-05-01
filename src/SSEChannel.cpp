@@ -307,6 +307,8 @@ void SSEChannel::CleanupMain() {
   struct epoll_event* t_events;
   int maxEvents = 1024;
 
+  t_events = (struct epoll_event*)calloc(maxEvents, sizeof(struct epoll_event));
+  
   while(!stop) {
     int n = epoll_wait(_efd, t_events, maxEvents, -1);
 
