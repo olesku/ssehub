@@ -4,4 +4,4 @@
 #define ulong unsigned long
 #define INC_LONG(longVar) (longVar < 0x7FFFFFFFL) ? longVar++ : longVar = 1
 
-#define MAXEVENTS 8192
+// #define MAXEVENTS 8192

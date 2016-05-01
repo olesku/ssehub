@@ -304,10 +304,11 @@ void SSEChannel::SendCache(SSEClient* client) {
  Handle client disconnects and errors.
 */
 void SSEChannel::CleanupMain() {
-  boost::shared_ptr<struct epoll_event[]> t_events(new struct epoll_event[MAXEVENTS]);
+  struct epoll_event* t_events;
+  int maxEvents = 1024;
 
   while(!stop) {
-    int n = epoll_wait(_efd, t_events.get(), MAXEVENTS, -1);
+    int n = epoll_wait(_efd, t_events, maxEvents, -1);
 
     for (int i = 0; i < n; i++) {
       SSEClient* client;
@@ -334,8 +335,17 @@ void SSEChannel::CleanupMain() {
         DLOG(INFO) << client->GetIP() << ": EPOLLOUT, flushing send buffer.";
         client->Flush();
       }
+    
+    }
+
+    if (n == maxEvents && maxEvents < 32768) {
+      maxEvents += maxEvents;
+      LOG(INFO) << "epoll_wait returned " << n << " events. Reallocationg t_events to " << maxEvents;
+      t_events = (struct epoll_event*)realloc(t_events, sizeof(epoll_event)*maxEvents);
     }
   }
+
+  free(t_events);
 }
 
 /**

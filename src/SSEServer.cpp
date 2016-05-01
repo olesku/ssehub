@@ -294,13 +294,16 @@ void SSEServer::RemoveClient(SSEClient* client) {
 */
 void SSEServer::ClientRouterLoop() {
   char buf[4096];
-  boost::shared_ptr<struct epoll_event[]> eventList(new struct epoll_event[MAXEVENTS]);
+  struct epoll_event* eventList;
+  int maxEvents = 1024;
+  
+  eventList = (struct epoll_event*)calloc(maxEvents, sizeof(struct epoll_event));
 
   LOG(INFO) << "Started client router thread.";
 
   while(1) {
-    int n = epoll_wait(_efd, eventList.get(), MAXEVENTS, -1);
-
+    int n = epoll_wait(_efd, eventList, maxEvents, -1);
+    
     for (int i = 0; i < n; i++) {
       SSEClient* client;
       client = static_cast<SSEClient*>(eventList[i].data.ptr);
@@ -411,6 +414,14 @@ void SSEServer::ClientRouterLoop() {
           RemoveClient(client);
         }
       }
+
+      if (n == maxEvents && maxEvents < 32768) {
+        maxEvents += maxEvents;
+        LOG(INFO) << "epoll_wait returned " << n << " events. Reallocationg eventList to " << maxEvents;
+        eventList = (struct epoll_event*)realloc(eventList, sizeof(epoll_event)*maxEvents);
+      }
     }
   }
+
+  free(eventList);
 }
