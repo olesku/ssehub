@@ -197,19 +197,8 @@ void SSEChannel::AddClient(SSEClient* client, HTTPRequest* req) {
     res.AppendBody(_evs_preamble_data);
   }
 
-  // Add client to epoll socket list.
-  ev.events   = EPOLLET | EPOLLOUT | EPOLLIN | EPOLLHUP | EPOLLRDHUP | EPOLLERR;
-  ev.data.ptr = client;
-  ret = epoll_ctl(_efd, EPOLL_CTL_ADD, client->Getfd(), &ev);
-
-  if (ret == -1) {
-    DLOG(ERROR) << "Failed to add client " << client->GetIP() << " to epoll event list.";
-    client->Destroy();
-    return;
-  }
-
   // Send the response.
-  client->Send(res.Get());
+  client->Send(res.Get(), SND_NO_FLUSH);
 
   // Apply filters.
   if (!req->GetQueryString("filterid").empty()) client->Subscribe(req->GetQueryString("filterid"), SUBSCRIPTION_ID);
@@ -223,6 +212,17 @@ void SSEChannel::AddClient(SSEClient* client, HTTPRequest* req) {
   }
 
   client->DeleteHttpReq();
+
+  // Add client to epoll socket list.
+  ev.events   = EPOLLET | EPOLLOUT | EPOLLIN | EPOLLHUP | EPOLLRDHUP | EPOLLERR;
+  ev.data.ptr = client;
+  ret = epoll_ctl(_efd, EPOLL_CTL_ADD, client->Getfd(), &ev);
+
+  if (ret == -1) {
+    DLOG(ERROR) << "Failed to add client " << client->GetIP() << " to epoll event list.";
+    client->Destroy();
+    return;
+  }
 
   INC_LONG(_stats.num_connects);
 
